@@ -14,6 +14,11 @@ let evaluatedStats = null;
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Check if URL has ?student=...&score=...
+  if (checkUrlResultParams()) {
+    return;
+  }
+
   // Pre-fill previously entered student name if available
   const savedName = localStorage.getItem('atc_student_name');
   if (savedName) {
@@ -21,6 +26,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (input) input.value = savedName;
   }
 });
+
+function checkUrlResultParams() {
+  const params = new URLSearchParams(window.location.search);
+  const student = params.get('student');
+  const scoreParam = params.get('score');
+
+  if (student && scoreParam !== null) {
+    const score = parseInt(scoreParam, 10) || 0;
+    renderCleanScorecardView(decodeURIComponent(student), score);
+    return true;
+  }
+  return false;
+}
 
 // ============================================================================
 // 2. FISHER-YATES SHUFFLE ALGORITHM
@@ -401,27 +419,34 @@ function filterReview(mode, btn) {
 // 7. STATIC SHARE LINK & PAYLOAD DECODER
 // ============================================================================
 
+function getStudentResultUrl() {
+  const base = window.location.origin + window.location.pathname;
+  const name = evaluatedStats ? evaluatedStats.studentName : currentStudentName;
+  const score = evaluatedStats ? evaluatedStats.score : 0;
+  return `${base}?student=${encodeURIComponent(name)}&score=${score}`;
+}
+
 /**
- * Copies the clean, official quiz URL (e.g. https://quiz-ten-steel-32.vercel.app/)
+ * Copies a clean, readable result link (e.g. https://.../?student=unar&score=85)
  */
-function copyQuizLink() {
-  const cleanUrl = window.location.origin + window.location.pathname;
-  navigator.clipboard.writeText(cleanUrl).then(() => {
-    showToast('🔗 Quiz link copied to clipboard!');
+function copyResultLink() {
+  const url = getStudentResultUrl();
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('🔗 Result link copied to clipboard!');
   }).catch(() => {
-    prompt('Quiz link:', cleanUrl);
+    prompt('Result Link:', url);
   });
 }
 
-
-
 function copyScoreSummary() {
   if (!evaluatedStats) return;
+  const resultUrl = getStudentResultUrl();
 
   const text = `🎓 *Ashri Tech Course - Final Assessment Quiz*
 ━━━━━━━━━━━━━━━━━━━━━━━
 👤 *Student:* ${evaluatedStats.studentName}
 📊 *Score:* ${evaluatedStats.score} / ${evaluatedStats.total} (${evaluatedStats.pct}%)
+🔗 *View Result:* ${resultUrl}
 ━━━━━━━━━━━━━━━━━━━━━━━`;
 
   navigator.clipboard.writeText(text).then(() => {
@@ -431,16 +456,78 @@ function copyScoreSummary() {
   });
 }
 
+/**
+ * Renders the clean verified scorecard when opening ?student=Name&score=X
+ */
+function renderCleanScorecardView(studentName, score) {
+  currentStudentName = studentName;
+  const total = 100;
+  const pct = Math.round((score / total) * 100);
+
+  let grade = 'F';
+  if (pct >= 90) grade = 'A+';
+  else if (pct >= 80) grade = 'A';
+  else if (pct >= 70) grade = 'B';
+  else if (pct >= 60) grade = 'C';
+  else if (pct >= 50) grade = 'D';
+
+  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  evaluatedStats = {
+    studentName,
+    score,
+    total,
+    pct,
+    grade,
+    correct: score,
+    incorrect: total - score,
+    skipped: 0,
+    date: todayStr,
+    sectionStats: {}
+  };
+
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('quiz-screen').classList.add('hidden');
+  document.getElementById('result-screen').classList.remove('hidden');
+
+  // Show top verified banner
+  const banner = document.getElementById('shared-result-banner');
+  if (banner) {
+    banner.classList.remove('hidden');
+    document.getElementById('shared-student-name').textContent = studentName;
+  }
+
+  // Populate Scorecard
+  document.getElementById('res-student-title').textContent = `${studentName}'s Scorecard`;
+  document.getElementById('res-date').textContent = todayStr;
+
+  document.getElementById('res-score-number').textContent = score;
+  document.getElementById('res-pct-tag').textContent = `${pct}%`;
+  document.getElementById('res-grade-tag').textContent = `Grade: ${grade} (${pct >= 50 ? 'PASSED' : 'NEEDS RETAKE'})`;
+
+  document.getElementById('res-correct-num').textContent = score;
+  document.getElementById('res-incorrect-num').textContent = total - score;
+  document.getElementById('res-skipped-num').textContent = 0;
+
+  // Review card note
+  const reviewContainer = document.getElementById('review-questions-container');
+  if (reviewContainer) {
+    reviewContainer.innerHTML = `
+      <div style="text-align:center; padding: 36px 20px; color: var(--text-secondary);">
+        <p style="font-size: 1.05rem; color: #fff; margin-bottom: 8px;">Official Scorecard Verified</p>
+        <p>This is the verified assessment scorecard for <strong>${escapeHtml(studentName)}</strong>.</p>
+        <button type="button" class="btn btn-primary btn-sm" style="margin-top: 16px;" onclick="startBlankQuiz()">Take This Quiz Yourself</button>
+      </div>
+    `;
+  }
+}
+
 function startBlankQuiz() {
-  window.location.hash = '';
-  window.location.reload();
+  window.location.href = window.location.pathname;
 }
 
 function restartQuiz() {
-  window.location.hash = '';
-  document.getElementById('result-screen').classList.add('hidden');
-  document.getElementById('start-screen').classList.remove('hidden');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.location.href = window.location.pathname;
 }
 
 function showToast(msg) {
