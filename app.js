@@ -1,14 +1,55 @@
 /**
  * Final Assessment Quiz - Application Engine
  * 100 Questions Shuffled for Every User
- * Streamlined: No student name/id, no timer, loader on submit, instant answers
+ * Features: Student Name capture, anti-cheat shuffling, instant loader on submit,
+ * red/green answer review, and static shareable results page with student name & answers.
  */
 
 let activeQuestions = [];
+let currentStudentName = '';
 let evaluatedStats = null;
 
 // ============================================================================
-// 1. FISHER-YATES SHUFFLE ALGORITHM
+// 1. INITIALIZATION & SHARED RESULT ROUTING
+// ============================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Check if opening a shared student result link (#result=...)
+  if (checkSharedResultHash()) {
+    return;
+  }
+
+  // Pre-fill previously entered student name if available
+  const savedName = localStorage.getItem('atc_student_name');
+  if (savedName) {
+    const input = document.getElementById('student-name');
+    if (input) input.value = savedName;
+  }
+});
+
+function checkSharedResultHash() {
+  const hash = window.location.hash;
+  if (!hash || !hash.startsWith('#result=')) {
+    return false;
+  }
+
+  try {
+    const encoded = hash.replace('#result=', '');
+    const jsonStr = decodeURIComponent(escape(atob(encoded)));
+    const data = JSON.parse(jsonStr);
+
+    if (data && data.n && data.a) {
+      renderSharedStaticResult(data);
+      return true;
+    }
+  } catch (err) {
+    console.warn('Failed to parse shared result payload:', err);
+  }
+  return false;
+}
+
+// ============================================================================
+// 2. FISHER-YATES SHUFFLE ALGORITHM
 // ============================================================================
 
 function shuffle(array) {
@@ -50,15 +91,32 @@ function buildShuffledQuiz() {
 }
 
 // ============================================================================
-// 2. QUIZ LIFECYCLE
+// 3. START ASSESSMENT
 // ============================================================================
 
 function startQuiz() {
+  const input = document.getElementById('student-name');
+  const name = input ? input.value.trim() : '';
+
+  if (!name) {
+    if (input) input.focus();
+    showToast('Please enter your full name to begin.');
+    return;
+  }
+
+  currentStudentName = name;
+  localStorage.setItem('atc_student_name', name);
+
+  // Initialize fresh shuffled questions
   activeQuestions = buildShuffledQuiz();
 
   document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('result-screen').classList.add('hidden');
   document.getElementById('quiz-screen').classList.remove('hidden');
+
+  // Update header with student name
+  const headerName = document.getElementById('header-student-name');
+  if (headerName) headerName.textContent = currentStudentName;
 
   renderQuestionsList();
   updateProgress();
@@ -106,17 +164,14 @@ function pickOption(qIdx, optIdx) {
   const q = activeQuestions[qIdx];
   if (!q) return;
 
-  // Toggle or select
   if (q.selectedIndex === optIdx) {
-    q.selectedIndex = null; // deselect if clicked again
+    q.selectedIndex = null; // deselect
   } else {
     q.selectedIndex = optIdx;
   }
 
-  // Update UI for this question's options
   const optContainer = document.getElementById(`q-options-${qIdx}`);
   if (optContainer) {
-    const letters = ['A', 'B', 'C', 'D'];
     optContainer.querySelectorAll('.opt-card').forEach((el, i) => {
       if (q.selectedIndex === i) {
         el.classList.add('selected');
@@ -141,7 +196,7 @@ function updateProgress() {
 }
 
 // ============================================================================
-// 3. SUBMISSION & LOADER
+// 4. SUBMISSION & LOADER
 // ============================================================================
 
 function promptSubmit() {
@@ -164,7 +219,7 @@ function promptSubmit() {
 }
 
 // ============================================================================
-// 4. SCORING & FINAL ANSWERS
+// 5. SCORING & FINAL ANSWERS EVALUATION
 // ============================================================================
 
 function evaluateResults() {
@@ -207,29 +262,61 @@ function evaluateResults() {
   else if (pct >= 60) grade = 'C';
   else if (pct >= 50) grade = 'D';
 
-  evaluatedStats = { score, total, pct, grade, correct, incorrect, skipped, sectionStats };
+  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-  // Switch to results view
+  evaluatedStats = {
+    studentName: currentStudentName,
+    score,
+    total,
+    pct,
+    grade,
+    correct,
+    incorrect,
+    skipped,
+    date: todayStr,
+    sectionStats
+  };
+
+  displayResultsScreen(evaluatedStats, false);
+}
+
+function displayResultsScreen(stats, isSharedView) {
+  document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('quiz-screen').classList.add('hidden');
   document.getElementById('result-screen').classList.remove('hidden');
 
-  // Populate Scorecard
-  document.getElementById('res-score-number').textContent = score;
-  document.getElementById('res-pct-tag').textContent = `${pct}%`;
-  document.getElementById('res-grade-tag').textContent = `Grade: ${grade} (${pct >= 50 ? 'Passed' : 'Needs Retake'})`;
+  // Shared banner state
+  const sharedBanner = document.getElementById('shared-notice-banner');
+  if (isSharedView) {
+    sharedBanner.classList.remove('hidden');
+    document.getElementById('shared-notice-name').textContent = stats.studentName;
+  } else {
+    sharedBanner.classList.add('hidden');
+  }
 
-  document.getElementById('res-correct-num').textContent = correct;
-  document.getElementById('res-incorrect-num').textContent = incorrect;
-  document.getElementById('res-skipped-num').textContent = skipped;
+  // Student info on scorecard
+  document.getElementById('res-student-title').textContent = `${stats.studentName}'s Scorecard`;
+  document.getElementById('res-date').textContent = stats.date;
 
-  document.getElementById('rf-inc').textContent = incorrect;
-  document.getElementById('rf-cor').textContent = correct;
-  document.getElementById('rf-skp').textContent = skipped;
+  // Score Hero
+  document.getElementById('res-score-number').textContent = stats.score;
+  document.getElementById('res-pct-tag').textContent = `${stats.pct}%`;
+  document.getElementById('res-grade-tag').textContent = `Grade: ${stats.grade} (${stats.pct >= 50 ? 'PASSED' : 'NEEDS RETAKE'})`;
 
-  // Render Section Breakdown
+  // Metric counts
+  document.getElementById('res-correct-num').textContent = stats.correct;
+  document.getElementById('res-incorrect-num').textContent = stats.incorrect;
+  document.getElementById('res-skipped-num').textContent = stats.skipped;
+
+  // Filter tab counts
+  document.getElementById('rf-inc').textContent = stats.incorrect;
+  document.getElementById('rf-cor').textContent = stats.correct;
+  document.getElementById('rf-skp').textContent = stats.skipped;
+
+  // Render Subject Breakdown
   const secContainer = document.getElementById('subject-breakdown-grid');
   secContainer.innerHTML = '';
-  for (const [secName, stat] of Object.entries(sectionStats)) {
+  for (const [secName, stat] of Object.entries(stats.sectionStats)) {
     const secPct = Math.round((stat.correct / stat.total) * 100);
     const row = document.createElement('div');
     row.className = 'breakdown-row';
@@ -249,6 +336,10 @@ function evaluateResults() {
   renderReviewList('ALL');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// ============================================================================
+// 6. DETAILED ANSWERS REVIEW RENDERER
+// ============================================================================
 
 function renderReviewList(filterMode) {
   const container = document.getElementById('review-questions-container');
@@ -294,15 +385,12 @@ function renderReviewList(filterMode) {
       let badgeHtml = '';
 
       if (isSelected && isCorrect) {
-        // Selected and it is correct -> Green
         cardClass += ' opt-correct-user';
         badgeHtml = '<span class="opt-badge correct-badge">✓ Your Answer (Correct)</span>';
       } else if (isSelected && !isCorrect) {
-        // Selected and it is wrong -> Red
         cardClass += ' opt-wrong-user';
         badgeHtml = '<span class="opt-badge wrong-badge">✗ Your Answer (Wrong)</span>';
       } else if (isCorrect) {
-        // The actual correct answer -> Green
         cardClass += ' opt-is-correct';
         badgeHtml = '<span class="opt-badge correct-badge">✓ Correct Answer</span>';
       } else {
@@ -345,35 +433,157 @@ function filterReview(mode, btn) {
 }
 
 // ============================================================================
-// 5. SHARING & ACTIONS
+// 7. STATIC SHARE LINK & PAYLOAD DECODER
 // ============================================================================
 
-function copyQuizLink() {
-  const url = window.location.href.split('#')[0];
-  navigator.clipboard.writeText(url).then(() => {
-    showToast('🔗 Quiz link copied to clipboard!');
-  }).catch(() => {
-    prompt('Quiz link:', url);
+/**
+ * Copies a static shareable link containing the student's name and exact answers.
+ * When anyone opens this link, it opens the static scorecard page with correct answers.
+ */
+function copyShareableResultLink() {
+  if (!evaluatedStats) return;
+
+  // Build compact payload mapping question originalId -> selected answer text
+  const answersMap = {};
+  activeQuestions.forEach(q => {
+    answersMap[q.originalId] = q.selectedIndex !== null ? q.options[q.selectedIndex] : null;
   });
+
+  const payload = {
+    n: evaluatedStats.studentName,
+    d: evaluatedStats.date,
+    a: answersMap
+  };
+
+  const jsonStr = JSON.stringify(payload);
+  const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
+  const shareUrl = `${window.location.origin}${window.location.pathname}#result=${encoded}`;
+
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    showToast(`🔗 Shareable link with ${evaluatedStats.studentName}'s results copied!`);
+  }).catch(() => {
+    prompt(`Shareable result link for ${evaluatedStats.studentName}:`, shareUrl);
+  });
+}
+
+/**
+ * Reconstructs the static scorecard from the shared hash payload
+ */
+function renderSharedStaticResult(data) {
+  currentStudentName = data.n || 'Student';
+
+  // Reconstruct activeQuestions using the canonical 100 questions from QUIZ_QUESTIONS
+  let correct = 0;
+  let incorrect = 0;
+  let skipped = 0;
+  const sectionStats = {};
+
+  activeQuestions = QUIZ_QUESTIONS.map((q, idx) => {
+    if (!sectionStats[q.section]) {
+      sectionStats[q.section] = { total: 0, correct: 0 };
+    }
+    sectionStats[q.section].total++;
+
+    const studentAnswerText = data.a ? data.a[q.id] : null;
+    let selectedIndex = null;
+    let resultStatus = 'SKIPPED';
+
+    if (studentAnswerText !== null && studentAnswerText !== undefined) {
+      selectedIndex = q.options.indexOf(studentAnswerText);
+      if (studentAnswerText === q.answer) {
+        correct++;
+        sectionStats[q.section].correct++;
+        resultStatus = 'CORRECT';
+      } else {
+        incorrect++;
+        resultStatus = 'INCORRECT';
+      }
+    } else {
+      skipped++;
+    }
+
+    return {
+      index: idx,
+      originalId: q.id,
+      section: q.section,
+      question: q.question,
+      options: q.options,
+      answer: q.answer,
+      selectedIndex: selectedIndex !== -1 ? selectedIndex : null,
+      resultStatus: resultStatus
+    };
+  });
+
+  const total = activeQuestions.length;
+  const score = correct;
+  const pct = Math.round((score / total) * 100);
+
+  let grade = 'F';
+  if (pct >= 90) grade = 'A+';
+  else if (pct >= 80) grade = 'A';
+  else if (pct >= 70) grade = 'B';
+  else if (pct >= 60) grade = 'C';
+  else if (pct >= 50) grade = 'D';
+
+  evaluatedStats = {
+    studentName: currentStudentName,
+    score,
+    total,
+    pct,
+    grade,
+    correct,
+    incorrect,
+    skipped,
+    date: data.d || new Date().toLocaleDateString('en-GB'),
+    sectionStats
+  };
+
+  displayResultsScreen(evaluatedStats, true);
 }
 
 function copyScoreSummary() {
   if (!evaluatedStats) return;
-  const text = `🎓 Final Assessment Quiz Result
-Score: ${evaluatedStats.score} / ${evaluatedStats.total} (${evaluatedStats.pct}%)
-Grade: ${evaluatedStats.grade} (${evaluatedStats.pct >= 50 ? 'PASSED' : 'NEEDS RETAKE'})
-Correct: ${evaluatedStats.correct} | Incorrect: ${evaluatedStats.incorrect} | Skipped: ${evaluatedStats.skipped}
-Take the quiz: ${window.location.href.split('#')[0]}`;
+
+  const answersMap = {};
+  activeQuestions.forEach(q => {
+    answersMap[q.originalId] = q.selectedIndex !== null ? q.options[q.selectedIndex] : null;
+  });
+  const payload = {
+    n: evaluatedStats.studentName,
+    d: evaluatedStats.date,
+    a: answersMap
+  };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  const shareUrl = `${window.location.origin}${window.location.pathname}#result=${encoded}`;
+
+  const text = `🎓 *FINAL ASSESSMENT QUIZ RESULT*
+━━━━━━━━━━━━━━━━━━━━━━━
+👤 Student: ${evaluatedStats.studentName}
+📊 Score: ${evaluatedStats.score} / ${evaluatedStats.total} (${evaluatedStats.pct}%)
+🏅 Grade: ${evaluatedStats.grade} (${evaluatedStats.pct >= 50 ? 'PASSED' : 'NEEDS RETAKE'})
+📅 Date: ${evaluatedStats.date}
+🔗 View Official Results & Answers:
+${shareUrl}
+━━━━━━━━━━━━━━━━━━━━━━━
+Ashri Tech Course Examination`;
 
   navigator.clipboard.writeText(text).then(() => {
-    showToast('📋 Score summary copied to clipboard!');
+    showToast('📋 WhatsApp score summary copied to clipboard!');
   }).catch(() => {
     prompt('Copy summary:', text);
   });
 }
 
+function startBlankQuiz() {
+  window.location.hash = '';
+  window.location.reload();
+}
+
 function restartQuiz() {
-  startQuiz();
+  window.location.hash = '';
+  document.getElementById('result-screen').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function showToast(msg) {
@@ -383,7 +593,7 @@ function showToast(msg) {
   toast.classList.add('show');
   setTimeout(() => {
     toast.classList.remove('show');
-  }, 2500);
+  }, 2800);
 }
 
 function escapeHtml(str) {
