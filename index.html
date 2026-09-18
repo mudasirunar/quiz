@@ -118,13 +118,6 @@
 
       <!-- Scorecard Card -->
       <div class="card result-card">
-        <div id="shared-result-banner" class="shared-notice-banner hidden">
-          <div class="shared-notice-text">
-            <span>🔒 Verified Assessment Scorecard for <strong id="shared-student-name">Student</strong></span>
-          </div>
-          <button type="button" class="btn btn-outline btn-sm" onclick="startBlankQuiz()">Take This Quiz</button>
-        </div>
-
         <div class="result-top">
           <div class="result-badge">OFFICIAL ASSESSMENT SCORECARD</div>
           <h2 class="result-title" id="res-student-title">Student Results</h2>
@@ -161,44 +154,7 @@
           <h4 class="breakdown-title">Subject Breakdown</h4>
           <div id="subject-breakdown-grid" class="breakdown-grid"></div>
         </div>
-
-        <!-- Actions -->
-        <div class="result-actions">
-          <button type="button" class="btn btn-primary" onclick="copyResultLink()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            <span>Share Result Link</span>
-          </button>
-          <button type="button" class="btn btn-secondary" onclick="copyScoreSummary()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            <span>Copy WhatsApp Summary</span>
-          </button>
-          <button type="button" class="btn btn-outline" onclick="restartQuiz()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-            <span>Take New Quiz</span>
-          </button>
-        </div>
       </div>
-
-      <!-- Detailed Answer Key Review -->
-      <div class="card review-card-wrapper">
-        <div class="review-header-bar">
-          <div>
-            <h3 class="review-main-title">Answer Key Review</h3>
-            <p class="review-sub">Compare your choices against the correct solutions for all 100 questions.</p>
-          </div>
-          <div class="filter-buttons">
-            <button type="button" class="filter-btn active" onclick="filterReview('ALL', this)">All (100)</button>
-            <button type="button" class="filter-btn" onclick="filterReview('INCORRECT', this)">Incorrect (<span id="rf-inc">0</span>)</button>
-            <button type="button" class="filter-btn" onclick="filterReview('CORRECT', this)">Correct (<span id="rf-cor">0</span>)</button>
-            <button type="button" class="filter-btn" onclick="filterReview('SKIPPED', this)">Skipped (<span id="rf-skp">0</span>)</button>
-          </div>
-        </div>
-
-        <div id="review-questions-container" class="review-questions-container">
-          <!-- Injected via JavaScript -->
-        </div>
-      </div>
-
     </section>
 
   </main>

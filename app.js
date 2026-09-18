@@ -272,7 +272,7 @@ function evaluateResults() {
   displayResultsScreen(evaluatedStats, false);
 }
 
-function displayResultsScreen(stats, isSharedView) {
+function displayResultsScreen(stats) {
   document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('quiz-screen').classList.add('hidden');
   document.getElementById('result-screen').classList.remove('hidden');
@@ -291,174 +291,30 @@ function displayResultsScreen(stats, isSharedView) {
   document.getElementById('res-incorrect-num').textContent = stats.incorrect;
   document.getElementById('res-skipped-num').textContent = stats.skipped;
 
-  // Filter tab counts
-  document.getElementById('rf-inc').textContent = stats.incorrect;
-  document.getElementById('rf-cor').textContent = stats.correct;
-  document.getElementById('rf-skp').textContent = stats.skipped;
-
   // Render Subject Breakdown
   const secContainer = document.getElementById('subject-breakdown-grid');
-  secContainer.innerHTML = '';
-  for (const [secName, stat] of Object.entries(stats.sectionStats)) {
-    const secPct = Math.round((stat.correct / stat.total) * 100);
-    const row = document.createElement('div');
-    row.className = 'breakdown-row';
-    row.innerHTML = `
-      <div class="breakdown-row-head">
-        <span class="sec-name">${escapeHtml(secName)}</span>
-        <span class="sec-score">${stat.correct} / ${stat.total} (${secPct}%)</span>
-      </div>
-      <div class="breakdown-track">
-        <div class="breakdown-fill" style="width: ${secPct}%"></div>
-      </div>
-    `;
-    secContainer.appendChild(row);
+  if (secContainer) {
+    secContainer.innerHTML = '';
+    for (const [secName, stat] of Object.entries(stats.sectionStats)) {
+      const secPct = Math.round((stat.correct / stat.total) * 100);
+      const row = document.createElement('div');
+      row.className = 'breakdown-row';
+      row.innerHTML = `
+        <div class="breakdown-row-head">
+          <span class="sec-name">${escapeHtml(secName)}</span>
+          <span class="sec-score">${stat.correct} / ${stat.total} (${secPct}%)</span>
+        </div>
+        <div class="breakdown-track">
+          <div class="breakdown-fill" style="width: ${secPct}%"></div>
+        </div>
+      `;
+      secContainer.appendChild(row);
+    }
   }
 
-  // Render Detailed Answers Review
-  renderReviewList('ALL');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ============================================================================
-// 6. DETAILED ANSWERS REVIEW RENDERER
-// ============================================================================
-
-function renderReviewList(filterMode) {
-  const container = document.getElementById('review-questions-container');
-  container.innerHTML = '';
-
-  const list = activeQuestions.filter(q => {
-    if (filterMode === 'ALL') return true;
-    return q.resultStatus === filterMode;
-  });
-
-  if (list.length === 0) {
-    container.innerHTML = `<div style="text-align:center; padding: 32px; color: var(--text-secondary);">No questions match this filter.</div>`;
-    return;
-  }
-
-  const letters = ['A', 'B', 'C', 'D'];
-
-  list.forEach(q => {
-    const item = document.createElement('div');
-    item.className = `review-item ${q.resultStatus.toLowerCase()}`;
-
-    let statusPillText = '✗ Incorrect';
-    let statusPillClass = 'incorrect';
-
-    if (q.resultStatus === 'CORRECT') {
-      statusPillText = '✓ Correct (+1)';
-      statusPillClass = 'correct';
-    } else if (q.resultStatus === 'SKIPPED') {
-      statusPillText = '○ Skipped (0)';
-      statusPillClass = 'skipped';
-    } else {
-      statusPillText = '✗ Incorrect (0)';
-      statusPillClass = 'incorrect';
-    }
-
-    // Build 4 options view with red/green highlights
-    let optionsHtml = '';
-    q.options.forEach((optText, optIdx) => {
-      const isSelected = q.selectedIndex === optIdx;
-      const isCorrect = optText === q.answer;
-
-      let cardClass = 'review-opt';
-      let badgeHtml = '';
-
-      if (isSelected && isCorrect) {
-        cardClass += ' opt-correct-user';
-        badgeHtml = '<span class="opt-badge correct-badge">✓ Your Answer (Correct)</span>';
-      } else if (isSelected && !isCorrect) {
-        cardClass += ' opt-wrong-user';
-        badgeHtml = '<span class="opt-badge wrong-badge">✗ Your Answer (Wrong)</span>';
-      } else if (isCorrect) {
-        cardClass += ' opt-is-correct';
-        badgeHtml = '<span class="opt-badge correct-badge">✓ Correct Answer</span>';
-      } else {
-        cardClass += ' opt-dimmed';
-      }
-
-      optionsHtml += `
-        <div class="${cardClass}">
-          <div class="review-opt-left">
-            <span class="review-opt-letter">${letters[optIdx]}</span>
-            <span class="review-opt-text">${escapeHtml(optText)}</span>
-          </div>
-          ${badgeHtml}
-        </div>
-      `;
-    });
-
-    item.innerHTML = `
-      <div class="review-item-head">
-        <div class="review-q-text">
-          <span class="review-q-num">Q${q.index + 1}.</span>
-          <span class="review-q-section">[${escapeHtml(q.section)}]</span>
-          ${escapeHtml(q.question)}
-        </div>
-        <span class="review-status-pill ${statusPillClass}">${statusPillText}</span>
-      </div>
-      <div class="review-options-list">
-        ${optionsHtml}
-      </div>
-    `;
-
-    container.appendChild(item);
-  });
-}
-
-function filterReview(mode, btn) {
-  document.querySelectorAll('.filter-btn').forEach(el => el.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderReviewList(mode);
-}
-
-// ============================================================================
-// 7. STATIC SHARE LINK & PAYLOAD DECODER
-// ============================================================================
-
-function getStudentResultUrl() {
-  const base = window.location.origin + window.location.pathname;
-  const name = evaluatedStats ? evaluatedStats.studentName : currentStudentName;
-  const score = evaluatedStats ? evaluatedStats.score : 0;
-  return `${base}?student=${encodeURIComponent(name)}&score=${score}`;
-}
-
-/**
- * Copies a clean, readable result link (e.g. https://.../?student=unar&score=85)
- */
-function copyResultLink() {
-  const url = getStudentResultUrl();
-  navigator.clipboard.writeText(url).then(() => {
-    showToast('🔗 Result link copied to clipboard!');
-  }).catch(() => {
-    prompt('Result Link:', url);
-  });
-}
-
-function copyScoreSummary() {
-  if (!evaluatedStats) return;
-  const resultUrl = getStudentResultUrl();
-
-  const text = `🎓 *Ashri Tech Course - Final Assessment Quiz*
-━━━━━━━━━━━━━━━━━━━━━━━
-👤 *Student:* ${evaluatedStats.studentName}
-📊 *Score:* ${evaluatedStats.score} / ${evaluatedStats.total} (${evaluatedStats.pct}%)
-🔗 *View Result:* ${resultUrl}
-━━━━━━━━━━━━━━━━━━━━━━━`;
-
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('📋 WhatsApp summary copied to clipboard!');
-  }).catch(() => {
-    prompt('Copy summary:', text);
-  });
-}
-
-/**
- * Renders the clean verified scorecard when opening ?student=Name&score=X
- */
 function renderCleanScorecardView(studentName, score) {
   currentStudentName = studentName;
   const total = 100;
@@ -486,40 +342,7 @@ function renderCleanScorecardView(studentName, score) {
     sectionStats: {}
   };
 
-  document.getElementById('start-screen').classList.add('hidden');
-  document.getElementById('quiz-screen').classList.add('hidden');
-  document.getElementById('result-screen').classList.remove('hidden');
-
-  // Show top verified banner
-  const banner = document.getElementById('shared-result-banner');
-  if (banner) {
-    banner.classList.remove('hidden');
-    document.getElementById('shared-student-name').textContent = studentName;
-  }
-
-  // Populate Scorecard
-  document.getElementById('res-student-title').textContent = `${studentName}'s Scorecard`;
-  document.getElementById('res-date').textContent = todayStr;
-
-  document.getElementById('res-score-number').textContent = score;
-  document.getElementById('res-pct-tag').textContent = `${pct}%`;
-  document.getElementById('res-grade-tag').textContent = `Grade: ${grade} (${pct >= 50 ? 'PASSED' : 'NEEDS RETAKE'})`;
-
-  document.getElementById('res-correct-num').textContent = score;
-  document.getElementById('res-incorrect-num').textContent = total - score;
-  document.getElementById('res-skipped-num').textContent = 0;
-
-  // Review card note
-  const reviewContainer = document.getElementById('review-questions-container');
-  if (reviewContainer) {
-    reviewContainer.innerHTML = `
-      <div style="text-align:center; padding: 36px 20px; color: var(--text-secondary);">
-        <p style="font-size: 1.05rem; color: #fff; margin-bottom: 8px;">Official Scorecard Verified</p>
-        <p>This is the verified assessment scorecard for <strong>${escapeHtml(studentName)}</strong>.</p>
-        <button type="button" class="btn btn-primary btn-sm" style="margin-top: 16px;" onclick="startBlankQuiz()">Take This Quiz Yourself</button>
-      </div>
-    `;
-  }
+  displayResultsScreen(evaluatedStats);
 }
 
 function startBlankQuiz() {
