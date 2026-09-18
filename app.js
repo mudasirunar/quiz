@@ -14,11 +14,6 @@ let evaluatedStats = null;
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Check if opening a shared student result link (#result=...)
-  if (checkSharedResultHash()) {
-    return;
-  }
-
   // Pre-fill previously entered student name if available
   const savedName = localStorage.getItem('atc_student_name');
   if (savedName) {
@@ -26,27 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (input) input.value = savedName;
   }
 });
-
-function checkSharedResultHash() {
-  const hash = window.location.hash;
-  if (!hash || !hash.startsWith('#result=')) {
-    return false;
-  }
-
-  try {
-    const encoded = hash.replace('#result=', '');
-    const jsonStr = decodeURIComponent(escape(atob(encoded)));
-    const data = JSON.parse(jsonStr);
-
-    if (data && data.n && data.a) {
-      renderSharedStaticResult(data);
-      return true;
-    }
-  } catch (err) {
-    console.warn('Failed to parse shared result payload:', err);
-  }
-  return false;
-}
 
 // ============================================================================
 // 2. FISHER-YATES SHUFFLE ALGORITHM
@@ -285,15 +259,6 @@ function displayResultsScreen(stats, isSharedView) {
   document.getElementById('quiz-screen').classList.add('hidden');
   document.getElementById('result-screen').classList.remove('hidden');
 
-  // Shared banner state
-  const sharedBanner = document.getElementById('shared-notice-banner');
-  if (isSharedView) {
-    sharedBanner.classList.remove('hidden');
-    document.getElementById('shared-notice-name').textContent = stats.studentName;
-  } else {
-    sharedBanner.classList.add('hidden');
-  }
-
   // Student info on scorecard
   document.getElementById('res-student-title').textContent = `${stats.studentName}'s Scorecard`;
   document.getElementById('res-date').textContent = stats.date;
@@ -437,109 +402,18 @@ function filterReview(mode, btn) {
 // ============================================================================
 
 /**
- * Copies a static shareable link containing the student's name and exact answers.
- * When anyone opens this link, it opens the static scorecard page with correct answers.
+ * Copies the clean, official quiz URL (e.g. https://quiz-ten-steel-32.vercel.app/)
  */
-function copyShareableResultLink() {
-  if (!evaluatedStats) return;
-
-  // Build compact payload mapping question originalId -> selected answer text
-  const answersMap = {};
-  activeQuestions.forEach(q => {
-    answersMap[q.originalId] = q.selectedIndex !== null ? q.options[q.selectedIndex] : null;
-  });
-
-  const payload = {
-    n: evaluatedStats.studentName,
-    d: evaluatedStats.date,
-    a: answersMap
-  };
-
-  const jsonStr = JSON.stringify(payload);
-  const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
-  const shareUrl = `${window.location.origin}${window.location.pathname}#result=${encoded}`;
-
-  navigator.clipboard.writeText(shareUrl).then(() => {
-    showToast(`🔗 Shareable link with ${evaluatedStats.studentName}'s results copied!`);
+function copyQuizLink() {
+  const cleanUrl = window.location.origin + window.location.pathname;
+  navigator.clipboard.writeText(cleanUrl).then(() => {
+    showToast('🔗 Quiz link copied to clipboard!');
   }).catch(() => {
-    prompt(`Shareable result link for ${evaluatedStats.studentName}:`, shareUrl);
+    prompt('Quiz link:', cleanUrl);
   });
 }
 
-/**
- * Reconstructs the static scorecard from the shared hash payload
- */
-function renderSharedStaticResult(data) {
-  currentStudentName = data.n || 'Student';
 
-  // Reconstruct activeQuestions using the canonical 100 questions from QUIZ_QUESTIONS
-  let correct = 0;
-  let incorrect = 0;
-  let skipped = 0;
-  const sectionStats = {};
-
-  activeQuestions = QUIZ_QUESTIONS.map((q, idx) => {
-    if (!sectionStats[q.section]) {
-      sectionStats[q.section] = { total: 0, correct: 0 };
-    }
-    sectionStats[q.section].total++;
-
-    const studentAnswerText = data.a ? data.a[q.id] : null;
-    let selectedIndex = null;
-    let resultStatus = 'SKIPPED';
-
-    if (studentAnswerText !== null && studentAnswerText !== undefined) {
-      selectedIndex = q.options.indexOf(studentAnswerText);
-      if (studentAnswerText === q.answer) {
-        correct++;
-        sectionStats[q.section].correct++;
-        resultStatus = 'CORRECT';
-      } else {
-        incorrect++;
-        resultStatus = 'INCORRECT';
-      }
-    } else {
-      skipped++;
-    }
-
-    return {
-      index: idx,
-      originalId: q.id,
-      section: q.section,
-      question: q.question,
-      options: q.options,
-      answer: q.answer,
-      selectedIndex: selectedIndex !== -1 ? selectedIndex : null,
-      resultStatus: resultStatus
-    };
-  });
-
-  const total = activeQuestions.length;
-  const score = correct;
-  const pct = Math.round((score / total) * 100);
-
-  let grade = 'F';
-  if (pct >= 90) grade = 'A+';
-  else if (pct >= 80) grade = 'A';
-  else if (pct >= 70) grade = 'B';
-  else if (pct >= 60) grade = 'C';
-  else if (pct >= 50) grade = 'D';
-
-  evaluatedStats = {
-    studentName: currentStudentName,
-    score,
-    total,
-    pct,
-    grade,
-    correct,
-    incorrect,
-    skipped,
-    date: data.d || new Date().toLocaleDateString('en-GB'),
-    sectionStats
-  };
-
-  displayResultsScreen(evaluatedStats, true);
-}
 
 function copyScoreSummary() {
   if (!evaluatedStats) return;
