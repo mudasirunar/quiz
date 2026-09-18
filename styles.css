@@ -42,6 +42,18 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+::selection {
+  background: #6366f1;
+  color: #ffffff;
+}
+
+::-moz-selection {
+  background: #6366f1;
+  color: #ffffff;
 }
 
 html {
@@ -255,7 +267,6 @@ body {
   cursor: pointer;
   transition: var(--transition);
   text-decoration: none;
-  user-select: none;
 }
 
 .btn:active {
@@ -444,7 +455,6 @@ body {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: var(--transition);
-  user-select: none;
   text-align: left;
   font-size: 0.96rem;
   color: #e2e8f0;
