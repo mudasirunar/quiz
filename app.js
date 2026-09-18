@@ -544,31 +544,14 @@ function renderSharedStaticResult(data) {
 function copyScoreSummary() {
   if (!evaluatedStats) return;
 
-  const answersMap = {};
-  activeQuestions.forEach(q => {
-    answersMap[q.originalId] = q.selectedIndex !== null ? q.options[q.selectedIndex] : null;
-  });
-  const payload = {
-    n: evaluatedStats.studentName,
-    d: evaluatedStats.date,
-    a: answersMap
-  };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  const shareUrl = `${window.location.origin}${window.location.pathname}#result=${encoded}`;
-
-  const text = `🎓 *FINAL ASSESSMENT QUIZ RESULT*
+  const text = `🎓 *Ashri Tech Course - Final Assessment Quiz*
 ━━━━━━━━━━━━━━━━━━━━━━━
-👤 Student: ${evaluatedStats.studentName}
-📊 Score: ${evaluatedStats.score} / ${evaluatedStats.total} (${evaluatedStats.pct}%)
-🏅 Grade: ${evaluatedStats.grade} (${evaluatedStats.pct >= 50 ? 'PASSED' : 'NEEDS RETAKE'})
-📅 Date: ${evaluatedStats.date}
-🔗 View Official Results & Answers:
-${shareUrl}
-━━━━━━━━━━━━━━━━━━━━━━━
-Ashri Tech Course Examination`;
+👤 *Student:* ${evaluatedStats.studentName}
+📊 *Score:* ${evaluatedStats.score} / ${evaluatedStats.total} (${evaluatedStats.pct}%)
+━━━━━━━━━━━━━━━━━━━━━━━`;
 
   navigator.clipboard.writeText(text).then(() => {
-    showToast('📋 WhatsApp score summary copied to clipboard!');
+    showToast('📋 WhatsApp summary copied to clipboard!');
   }).catch(() => {
     prompt('Copy summary:', text);
   });
