@@ -272,10 +272,27 @@ function evaluateResults() {
   displayResultsScreen(evaluatedStats, false);
 }
 
-function displayResultsScreen(stats) {
+function displayResultsScreen(stats, isSharedView = false) {
   document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('quiz-screen').classList.add('hidden');
   document.getElementById('result-screen').classList.remove('hidden');
+
+  const sharedBanner = document.getElementById('shared-result-banner');
+  const sharedStudentName = document.getElementById('shared-student-name');
+  const studentActionsBar = document.getElementById('student-actions-bar');
+  const studentReviewSection = document.getElementById('student-review-section');
+  const breakdownSection = document.querySelector('.subject-breakdown');
+
+  if (isSharedView) {
+    if (sharedBanner) sharedBanner.classList.remove('hidden');
+    if (sharedStudentName) sharedStudentName.textContent = stats.studentName;
+    if (studentActionsBar) studentActionsBar.classList.add('hidden');
+    if (studentReviewSection) studentReviewSection.classList.add('hidden');
+  } else {
+    if (sharedBanner) sharedBanner.classList.add('hidden');
+    if (studentActionsBar) studentActionsBar.classList.remove('hidden');
+    if (studentReviewSection) studentReviewSection.classList.remove('hidden');
+  }
 
   // Student info on scorecard
   document.getElementById('res-student-title').textContent = `${stats.studentName}'s Scorecard`;
@@ -295,24 +312,185 @@ function displayResultsScreen(stats) {
   const secContainer = document.getElementById('subject-breakdown-grid');
   if (secContainer) {
     secContainer.innerHTML = '';
-    for (const [secName, stat] of Object.entries(stats.sectionStats)) {
-      const secPct = Math.round((stat.correct / stat.total) * 100);
-      const row = document.createElement('div');
-      row.className = 'breakdown-row';
-      row.innerHTML = `
-        <div class="breakdown-row-head">
-          <span class="sec-name">${escapeHtml(secName)}</span>
-          <span class="sec-score">${stat.correct} / ${stat.total} (${secPct}%)</span>
-        </div>
-        <div class="breakdown-track">
-          <div class="breakdown-fill" style="width: ${secPct}%"></div>
-        </div>
-      `;
-      secContainer.appendChild(row);
+    const entries = Object.entries(stats.sectionStats || {});
+    if (entries.length > 0) {
+      if (breakdownSection) breakdownSection.classList.remove('hidden');
+      for (const [secName, stat] of entries) {
+        const secPct = Math.round((stat.correct / stat.total) * 100);
+        const row = document.createElement('div');
+        row.className = 'breakdown-row';
+        row.innerHTML = `
+          <div class="breakdown-row-head">
+            <span class="sec-name">${escapeHtml(secName)}</span>
+            <span class="sec-score">${stat.correct} / ${stat.total} (${secPct}%)</span>
+          </div>
+          <div class="breakdown-track">
+            <div class="breakdown-fill" style="width: ${secPct}%"></div>
+          </div>
+        `;
+        secContainer.appendChild(row);
+      }
+    } else {
+      if (breakdownSection) breakdownSection.classList.add('hidden');
     }
   }
 
+  // If student submitter, populate review filter counts and render review
+  if (!isSharedView) {
+    const incEl = document.getElementById('rf-inc');
+    const corEl = document.getElementById('rf-cor');
+    const skpEl = document.getElementById('rf-skp');
+    if (incEl) incEl.textContent = stats.incorrect;
+    if (corEl) corEl.textContent = stats.correct;
+    if (skpEl) skpEl.textContent = stats.skipped;
+
+    // Reset filter buttons
+    document.querySelectorAll('.filter-btn').forEach((btn, idx) => {
+      if (idx === 0) btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
+
+    renderReviewList('ALL');
+  }
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============================================================================
+// 6. DETAILED ANSWER KEY REVIEW (FOR QUIZ SUBMITTER)
+// ============================================================================
+
+let currentReviewFilter = 'ALL';
+
+function filterReview(mode, clickedBtn) {
+  currentReviewFilter = mode;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  if (clickedBtn) clickedBtn.classList.add('active');
+  renderReviewList(mode);
+}
+
+function renderReviewList(filterMode = 'ALL') {
+  const container = document.getElementById('review-questions-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const letters = ['A', 'B', 'C', 'D'];
+
+  const filtered = activeQuestions.filter(q => {
+    if (filterMode === 'ALL') return true;
+    if (filterMode === 'CORRECT') return q.resultStatus === 'CORRECT';
+    if (filterMode === 'INCORRECT') return q.resultStatus === 'INCORRECT';
+    if (filterMode === 'SKIPPED') return q.resultStatus === 'SKIPPED';
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty-state">No questions match this filter.</div>';
+    return;
+  }
+
+  filtered.forEach(q => {
+    const card = document.createElement('article');
+    const statusClass = (q.resultStatus || 'skipped').toLowerCase();
+    card.className = `review-item ${statusClass}`;
+
+    let statusBadge = '';
+    if (q.resultStatus === 'CORRECT') {
+      statusBadge = '<span class="review-badge-status badge-correct">✓ Correct</span>';
+    } else if (q.resultStatus === 'INCORRECT') {
+      statusBadge = '<span class="review-badge-status badge-incorrect">✗ Incorrect</span>';
+    } else {
+      statusBadge = '<span class="review-badge-status badge-skipped">⚠ Skipped</span>';
+    }
+
+    let optionsHtml = '';
+    q.options.forEach((optText, optIdx) => {
+      const isSelected = (q.selectedIndex === optIdx);
+      const isCorrectAnswer = (optText === q.answer);
+
+      let optClass = 'review-opt';
+      let badgeHtml = '';
+
+      if (isSelected && isCorrectAnswer) {
+        optClass += ' opt-correct-user';
+        badgeHtml = '<span class="opt-badge badge-correct">✓ Your Answer (Correct)</span>';
+      } else if (isSelected && !isCorrectAnswer) {
+        optClass += ' opt-wrong-user';
+        badgeHtml = '<span class="opt-badge badge-wrong">✗ Your Answer (Wrong)</span>';
+      } else if (!isSelected && isCorrectAnswer) {
+        optClass += ' opt-is-correct';
+        badgeHtml = '<span class="opt-badge badge-correct">✓ Correct Answer</span>';
+      } else {
+        optClass += ' opt-dimmed';
+      }
+
+      optionsHtml += `
+        <div class="${optClass}">
+          <div class="review-opt-left">
+            <span class="review-opt-letter">${letters[optIdx]}</span>
+            <span class="review-opt-text">${escapeHtml(optText)}</span>
+          </div>
+          ${badgeHtml}
+        </div>
+      `;
+    });
+
+    card.innerHTML = `
+      <div class="review-item-head">
+        <div class="review-item-left">
+          <span class="q-index-pill">Question ${q.index + 1} of ${activeQuestions.length}</span>
+          <span class="q-section-badge">${escapeHtml(q.section)}</span>
+        </div>
+        ${statusBadge}
+      </div>
+      <div class="review-q-text">${escapeHtml(q.question)}</div>
+      <div class="review-options-list">
+        ${optionsHtml}
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+// ============================================================================
+// 7. CLEAN SHARE LINK & WHATSAPP GENERATORS
+// ============================================================================
+
+function copyResultLink() {
+  if (!evaluatedStats) return;
+  const baseUrl = `${window.location.origin}${window.location.pathname}`;
+  const shareUrl = `${baseUrl}?student=${encodeURIComponent(evaluatedStats.studentName)}&score=${evaluatedStats.score}`;
+
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    showToast('Scorecard share link copied!');
+  }).catch(() => {
+    prompt('Copy this scorecard link:', shareUrl);
+  });
+}
+
+function copyScoreSummary() {
+  if (!evaluatedStats) return;
+  const baseUrl = `${window.location.origin}${window.location.pathname}`;
+  const shareUrl = `${baseUrl}?student=${encodeURIComponent(evaluatedStats.studentName)}&score=${evaluatedStats.score}`;
+
+  const summary = [
+    `🎓 ASHRI TECH COURSE - FINAL ASSESSMENT`,
+    `━━━━━━━━━━━━━━━━━━━━━━━`,
+    `👤 Student: ${evaluatedStats.studentName}`,
+    `📊 Score: ${evaluatedStats.score} / 100 (${evaluatedStats.pct}%)`,
+    `🏅 Grade: ${evaluatedStats.grade} (${evaluatedStats.pct >= 50 ? 'PASSED' : 'NEEDS RETAKE'})`,
+    `📅 Date: ${evaluatedStats.date}`,
+    `━━━━━━━━━━━━━━━━━━━━━━━`,
+    `🔗 Official Scorecard:`,
+    `${shareUrl}`
+  ].join('\n');
+
+  navigator.clipboard.writeText(summary).then(() => {
+    showToast('WhatsApp summary copied to clipboard!');
+  }).catch(() => {
+    prompt('Copy summary:', summary);
+  });
 }
 
 function renderCleanScorecardView(studentName, score) {
@@ -342,7 +520,7 @@ function renderCleanScorecardView(studentName, score) {
     sectionStats: {}
   };
 
-  displayResultsScreen(evaluatedStats);
+  displayResultsScreen(evaluatedStats, true);
 }
 
 function startBlankQuiz() {
